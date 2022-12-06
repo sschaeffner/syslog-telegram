@@ -1,68 +1,136 @@
 import socketserver
+from dataclasses import dataclass
 
 
-def alert(msg: str):
-    print(f"ALERT {msg}")
+@dataclass
+class Message:
+    pri_and_version: str
+    timestamp: str
+    hostname: str
+    app_name: str
+    procid: str
+    msgid: str
+    structured_data: str
+    msg: str
+    timestamp2: str | None
+    level: str | None
+    thread: str | None
+    clazz: str | None
+    msg2: str | None
 
 
-def handle_message(data: str):
-    print(f"HANDLE {data}")
+class SyslogHandler(socketserver.BaseRequestHandler):  # , DatagramProtocol):
+    # transport: DatagramTransport
 
-    # <14>1 2022-11-14T21:11:02Z 2f7c516ee87b fabx-app-1 6573 - -
-    # <14>1 2022-11-14T21:11:26Z 2f7c516ee87b fabx-app-1 6573 - -
-    # ^^^^ PRI -> Priority
-    #     ^ VERSION -> 1 for RFC5424
-    #       ^^^^^^^^^^^^^^^^^^^^ TIMESTAMP according to RFC3339
-    #                            ^^^^^^^^^^^^ HOSTNAME (container name)
-    #                                         ^^^^^^^^^^ APP-NAME
-    #                                                    ^^^^ PROCID
-    #                                                         ^ MSGID
-    #                                                           ^
-    s = data.split(" ")
-    pri_and_version = s[0]
-    timestamp = s[1]
-    hostname = s[2]
-    app_name = s[3]
-    procid = s[4]
-    msgid = s[5]
-    structured_data = s[6]
-    msg = " ".join(s[7:])
+    # def connection_made(self, transport):
+    #     self.transport = transport
+    #
+    # def datagram_received(self, data, addr):
+    #     message = data.decode()
+    #     print(f'Received {message} from {addr}')
+    #     self.handle_message(message)
 
-    if "fabx-app" in app_name:
-        s = msg.split(" ")
-
-        try:
-            # %white(%d{ISO8601}) %highlight(%-5level) [%blue(%t)]
-            # %cyan(%c{1}): %msg%n%throwable
-            timestamp2 = " ".join(s[0:1])
-            level = s[2]
-            thread = s[3]
-            clazz = s[4]
-            msg2 = s[5:]
-
-            if "warn" in level or "error" in level:
-                alert(msg)
-
-            return
-
-        except IndexError:
-            print(f"- unknown format - {msg}")
-
-    if ("warn" in msg.lower() or
-            "error" in msg.lower()):
-        alert(msg)
-
-
-class SyslogHandler(socketserver.BaseRequestHandler):
     def handle(self):
         data = bytes.decode(self.request[0].strip(), encoding="utf-8")
-        handle_message(data)
+        self.handle_message(data)
+
+    @staticmethod
+    def alert_filter(msg: Message) -> bool:
+        if msg.level:
+            return "warn" in msg.level or "error" in msg.level
+        else:
+            return "warn" in msg.msg.lower() or "error" in msg.msg.lower()
+
+    @staticmethod
+    def alert(msg: Message):
+        print(f"ALERT {msg}")
+
+    @staticmethod
+    def info_filter(msg: Message) -> bool:
+        if msg.level:
+            return "info" in msg.level
+        else:
+            return "info" in msg.msg.lower()
+
+    @staticmethod
+    def info(msg: Message):
+        print(f"INFO {msg}")
+
+    def handle_message(self, data: str):
+        print(f"HANDLE {data}")
+
+        s = data.split(" ")
+        pri_and_version = s[0]
+        timestamp = s[1]
+        hostname = s[2]
+        app_name = s[3]
+        procid = s[4]
+        msgid = s[5]
+        structured_data = s[6]
+        msg = " ".join(s[7:])
+
+        message = Message(
+            pri_and_version=pri_and_version,
+            timestamp=timestamp,
+            hostname=hostname,
+            app_name=app_name,
+            procid=procid,
+            msgid=msgid,
+            structured_data=structured_data,
+            msg=msg,
+            timestamp2=None,
+            level=None,
+            thread=None,
+            clazz=None,
+            msg2=None,
+        )
+
+        if "fabx-app" in app_name:
+            s = msg.split(" ")
+
+            try:
+                # %white(%d{ISO8601}) %highlight(%-5level) [%blue(%t)]
+                # %cyan(%c{1}): %msg%n%throwable
+                timestamp2 = " ".join(s[0:1])
+                level = s[2]
+                thread = s[3]
+                clazz = s[4]
+                msg2 = s[5:]
+
+                message = Message(
+                    pri_and_version=pri_and_version,
+                    timestamp=timestamp,
+                    hostname=hostname,
+                    app_name=app_name,
+                    procid=procid,
+                    msgid=msgid,
+                    structured_data=structured_data,
+                    msg=msg,
+                    timestamp2=timestamp2,
+                    level=level,
+                    thread=thread,
+                    clazz=clazz,
+                    msg2="".join(msg2),
+                )
+
+                if self.alert_filter(message):
+                    self.alert(message)
+                if self.info_filter(message):
+                    self.info(message)
+
+            except IndexError:
+                print(f"- unknown format - {msg}")
+        else:
+            if self.alert_filter(message):
+                self.alert(message)
+            if self.info_filter(message):
+                self.info(message)
 
 
-if __name__ == "__main__":
-    HOST, PORT = "0.0.0.0", 12312
-
-    server = socketserver.UDPServer((HOST, PORT), SyslogHandler)
-
-    print(f"waiting for messages on {HOST}:{PORT}...")
-    server.serve_forever()
+# if __name__ == "__main__":
+#     HOST, PORT = "0.0.0.0", 12312
+#
+#     server = socketserver.UDPServer((HOST, PORT), SyslogHandler)
+#
+#     print(f"waiting for messages on {HOST}:{PORT}...")
+#     server.serve_forever()
