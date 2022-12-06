@@ -1,11 +1,13 @@
 import asyncio
 import logging
 import os
+import re
 import signal
 import sys
 from dataclasses import dataclass
 
 from telegram import Update
+from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, \
     MessageHandler, filters, TypeHandler, Application
 
@@ -26,6 +28,11 @@ logger = logging.getLogger(__name__)
 application: Application
 
 
+def escape_ansi(line):
+    ansi_escape = re.compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
+    return ansi_escape.sub('', line)
+
+
 @dataclass
 class MyMessage:
     msg: str
@@ -40,6 +47,7 @@ async def on_my_message(
         chat_id=CHAT_ID,
         text=msg.msg,
         disable_notification=not msg.notification,
+        parse_mode=ParseMode.MARKDOWN_V2
     )
 
 
@@ -71,22 +79,30 @@ def raise_system_exit():
     raise SystemExit
 
 
-async def alert(msg: Message):
-    print(f"ALERT {msg}")
+async def snd(level: str, msg: Message):
+    log_msg_escaped = msg.msg.translate(str.maketrans({
+        "`": "\`",
+        "\\": "\\\\"
+    }))
+    log_msg_escaped = escape_ansi(log_msg_escaped)
+
+    html_msg = f"*{level}*\n`{log_msg_escaped}`"
 
     await application.update_queue.put(
-        MyMessage(msg=msg.msg2 or msg.msg,
+        MyMessage(msg=html_msg,
                   notification=True)
     )
+
+
+async def alert(msg: Message):
+    print(f"ALERT {msg}")
+    await snd("ALERT", msg)
 
 
 async def info(msg: Message):
     print(f"INFO {msg}")
 
-    await application.update_queue.put(
-        MyMessage(msg=msg.msg2 or msg.msg,
-                  notification=False)
-    )
+    await snd("INFO", msg)
 
 
 async def main():
@@ -127,8 +143,8 @@ async def main():
         )
         await application.start()
         await application.update_queue.put(
-            MyMessage(msg=f"Starting SyslogHandler v{VERSION}",
-                      notification=True)
+            MyMessage(msg=f"Starting SyslogHandler `v{VERSION}`",
+                      notification=True),
         )
         stop_signals = (signal.SIGINT, signal.SIGTERM, signal.SIGABRT)
         for sig in stop_signals or []:

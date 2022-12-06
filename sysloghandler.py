@@ -56,7 +56,7 @@ class SyslogHandler(DatagramProtocol):
         raise NotImplementedError()
 
     async def handle_message(self, data: str):
-        print(f"HANDLE {data}")
+        print(f"HANDLE {data.strip()}")
 
         s = data.split(" ")
         pri_and_version = s[0]
