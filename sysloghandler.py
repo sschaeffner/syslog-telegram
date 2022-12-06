@@ -1,4 +1,6 @@
+import asyncio
 import socketserver
+from asyncio import DatagramProtocol
 from dataclasses import dataclass
 
 
@@ -19,31 +21,27 @@ class Message:
     msg2: str | None
 
 
-class SyslogHandler(socketserver.BaseRequestHandler):  # , DatagramProtocol):
-    # transport: DatagramTransport
+class SyslogHandler(DatagramProtocol):
+    transport: asyncio.DatagramTransport
 
-    # def connection_made(self, transport):
-    #     self.transport = transport
-    #
-    # def datagram_received(self, data, addr):
-    #     message = data.decode()
-    #     print(f'Received {message} from {addr}')
-    #     self.handle_message(message)
+    def connection_made(self, transport):
+        self.transport = transport
 
-    def handle(self):
-        data = bytes.decode(self.request[0].strip(), encoding="utf-8")
-        self.handle_message(data)
+    def datagram_received(self, data, addr):
+        message = data.decode()
+        asyncio.ensure_future(self.handle_message(message))
 
     @staticmethod
     def alert_filter(msg: Message) -> bool:
         if msg.level:
-            return "warn" in msg.level or "error" in msg.level
+            return "warn" in msg.level.lower() or "error" in msg.level.lower()
         else:
             return "warn" in msg.msg.lower() or "error" in msg.msg.lower()
 
     @staticmethod
-    def alert(msg: Message):
-        print(f"ALERT {msg}")
+    async def alert(msg: Message):
+        """to override"""
+        raise NotImplementedError()
 
     @staticmethod
     def info_filter(msg: Message) -> bool:
@@ -53,10 +51,11 @@ class SyslogHandler(socketserver.BaseRequestHandler):  # , DatagramProtocol):
             return "info" in msg.msg.lower()
 
     @staticmethod
-    def info(msg: Message):
-        print(f"INFO {msg}")
+    async def info(msg: Message):
+        """to override"""
+        raise NotImplementedError()
 
-    def handle_message(self, data: str):
+    async def handle_message(self, data: str):
         print(f"HANDLE {data}")
 
         s = data.split(" ")
@@ -114,23 +113,14 @@ class SyslogHandler(socketserver.BaseRequestHandler):  # , DatagramProtocol):
                 )
 
                 if self.alert_filter(message):
-                    self.alert(message)
+                    await self.alert(message)
                 if self.info_filter(message):
-                    self.info(message)
+                    await self.info(message)
 
             except IndexError:
                 print(f"- unknown format - {msg}")
         else:
             if self.alert_filter(message):
-                self.alert(message)
+                await self.alert(message)
             if self.info_filter(message):
-                self.info(message)
-
-
-# if __name__ == "__main__":
-#     HOST, PORT = "0.0.0.0", 12312
-#
-#     server = socketserver.UDPServer((HOST, PORT), SyslogHandler)
-#
-#     print(f"waiting for messages on {HOST}:{PORT}...")
-#     server.serve_forever()
+                await self.info(message)

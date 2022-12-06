@@ -1,11 +1,20 @@
 import asyncio
 import logging
+import os
+import signal
 import sys
 from dataclasses import dataclass
-import os
+
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, \
-    MessageHandler, filters, TypeHandler
+    MessageHandler, filters, TypeHandler, Application
+
+from sysloghandler import SyslogHandler, Message
+
+# GLOBAL SETTINGS #
+CHAT_ID = 50877378
+VERSION = "0.1.0"
+###################
 
 # Enable logging
 logging.basicConfig(
@@ -14,21 +23,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-CHAT_ID = 50877378
+application: Application
 
 
 @dataclass
-class MyMessageUpdate:
+class MyMessage:
     msg: str
+    notification: bool
 
 
-async def my_message_update(
-        update: MyMessageUpdate,
+async def on_my_message(
+        msg: MyMessage,
         context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     await context.bot.send_message(
         chat_id=CHAT_ID,
-        text=update.msg
+        text=msg.msg,
+        disable_notification=not msg.notification,
     )
 
 
@@ -56,6 +67,28 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(update.effective_chat.id)
 
 
+def raise_system_exit():
+    raise SystemExit
+
+
+async def alert(msg: Message):
+    print(f"ALERT {msg}")
+
+    await application.update_queue.put(
+        MyMessage(msg=msg.msg2 or msg.msg,
+                  notification=True)
+    )
+
+
+async def info(msg: Message):
+    print(f"INFO {msg}")
+
+    await application.update_queue.put(
+        MyMessage(msg=msg.msg2 or msg.msg,
+                  notification=False)
+    )
+
+
 async def main():
     try:
         token = os.environ["TOKEN"]
@@ -63,6 +96,7 @@ async def main():
         print("Pass Telegram TOKEN as environment variable.", file=sys.stderr)
         sys.exit(1)
 
+    global application
     application = ApplicationBuilder().token(token).build()
 
     start_handler = CommandHandler('start', start)
@@ -78,17 +112,34 @@ async def main():
     application.add_handler(message_handler)
 
     application.add_handler(
-        TypeHandler(type=MyMessageUpdate, callback=my_message_update)
+        TypeHandler(type=MyMessage, callback=on_my_message)
     )
 
+    loop = asyncio.get_event_loop()
+
     async with application:
+        handler = SyslogHandler()
+        handler.info = info
+        handler.alert = alert
+        transport, protocol = await loop.create_datagram_endpoint(
+            lambda: handler,
+            local_addr=("0.0.0.0", 12312)
+        )
         await application.start()
         await application.update_queue.put(
-            MyMessageUpdate(msg="MY PROACTIVE MESSAGE")
+            MyMessage(msg=f"Starting SyslogHandler v{VERSION}",
+                      notification=True)
         )
-        await asyncio.sleep(5)
+        stop_signals = (signal.SIGINT, signal.SIGTERM, signal.SIGABRT)
+        for sig in stop_signals or []:
+            loop.add_signal_handler(sig, raise_system_exit)
+
+        loop.run_forever()
         await application.stop()
+        transport.close()
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    global_loop = asyncio.get_event_loop()
+    main_task = asyncio.ensure_future(main())
+    global_loop.run_forever()
