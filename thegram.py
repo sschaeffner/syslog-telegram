@@ -79,19 +79,60 @@ def raise_system_exit():
     raise SystemExit
 
 
-async def snd(level: str, msg: Message):
-    log_msg_escaped = msg.msg.translate(str.maketrans({
+def escape_for_pre(msg: str):
+    # Inside pre and code entities, all '`' and '\' characters must be
+    # escaped with a preceding '\' character.
+    return msg.translate(str.maketrans({
         "`": "\`",
         "\\": "\\\\"
     }))
-    log_msg_escaped = escape_ansi(log_msg_escaped)
 
-    html_msg = f"*{level}*\n`{log_msg_escaped}`"
 
-    await application.update_queue.put(
-        MyMessage(msg=html_msg,
-                  notification=True)
-    )
+def escape_for_markdown(msg: str):
+    # In all other places characters '_', '*', '[', ']', '(', ')', '~', '`',
+    # '>', '#', '+', '-', '=', '|', '{', '}', '.', '!' must be escaped with
+    # the preceding character '\'.
+    return msg.translate(str.maketrans({
+        '_': '\_',
+        '*': '\*',
+        '[': '\[',
+        ']': '\]',
+        '(': '\(',
+        ')': '\)',
+        '~': '\~',
+        '`': '\`',
+        '>': '\>',
+        '#': '\#',
+        '+': '\+',
+        '-': '\-',
+        '=': '\=',
+        '|': '\|',
+        '{': '\{',
+        '}': '\}',
+        '.': '\.',
+        '!': '\!'
+    }))
+
+
+async def snd(level: str, msg: Message):
+    if msg.msg2:
+        html_msg = f"""*{escape_for_markdown(escape_ansi(msg.level))}*
+{escape_for_markdown(escape_ansi(msg.timestamp2))} {escape_for_markdown(escape_ansi(msg.clazz))}
+```
+{escape_for_pre(escape_ansi(msg.msg2))}
+```
+"""
+        print(html_msg)
+
+        # log_msg_escaped = escape_for_pre(msg.msg)
+        # log_msg_escaped = escape_ansi(log_msg_escaped)
+        #
+        # html_msg = f"*{level}*\n`{log_msg_escaped}`"
+
+        await application.update_queue.put(
+            MyMessage(msg=html_msg,
+                      notification=True)
+        )
 
 
 async def alert(msg: Message):

@@ -1,5 +1,4 @@
 import asyncio
-import socketserver
 from asyncio import DatagramProtocol
 from dataclasses import dataclass
 
@@ -94,7 +93,7 @@ class SyslogHandler(DatagramProtocol):
                 level = s[2]
                 thread = s[3]
                 clazz = s[4]
-                msg2 = s[5:]
+                msg2 = " ".join(s[5:])
 
                 message = Message(
                     pri_and_version=pri_and_version,
