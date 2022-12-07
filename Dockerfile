@@ -2,6 +2,6 @@
 
 FROM python:3.9.15-slim
 WORKDIR /app
-COPY sysloghandler.py requirements.txt /app/
+COPY sysloghandler.py requirements.txt thegram.py /app/
 RUN pip3 install -r requirements.txt
-CMD ["python3", "main.py"]
+CMD ["python3", "thegram.py"]
