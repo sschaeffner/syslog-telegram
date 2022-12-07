@@ -45,7 +45,7 @@ class SyslogHandler(DatagramProtocol):
     @staticmethod
     def info_filter(msg: Message) -> bool:
         if msg.level:
-            return "info" in msg.level
+            return "info" in msg.level.lower()
         else:
             return "info" in msg.msg.lower()
 

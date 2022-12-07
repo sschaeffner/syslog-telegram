@@ -114,36 +114,39 @@ def escape_for_markdown(msg: str):
     }))
 
 
-async def snd(level: str, msg: Message):
+async def snd(level: str, emoji: str, msg: Message):
     if msg.msg2:
-        html_msg = f"""*{escape_for_markdown(escape_ansi(msg.level))}*
+        html_msg = f"""{emoji} *{escape_for_markdown(escape_ansi(msg.level))}* {emoji}
+{escape_for_markdown(escape_ansi(msg.timestamp))} {escape_for_markdown(escape_ansi(msg.hostname))} {escape_for_markdown(escape_ansi(msg.app_name))} {escape_for_markdown(escape_ansi(msg.procid))}
+```
+{escape_for_pre(escape_ansi(msg.msg))}
+```
+"""
+
+    else:
+        html_msg = f"""{emoji} *{escape_for_markdown(escape_ansi(level))}* {emoji}
 {escape_for_markdown(escape_ansi(msg.timestamp2))} {escape_for_markdown(escape_ansi(msg.clazz))}
 ```
 {escape_for_pre(escape_ansi(msg.msg2))}
 ```
 """
-        print(html_msg)
 
-        # log_msg_escaped = escape_for_pre(msg.msg)
-        # log_msg_escaped = escape_ansi(log_msg_escaped)
-        #
-        # html_msg = f"*{level}*\n`{log_msg_escaped}`"
-
-        await application.update_queue.put(
-            MyMessage(msg=html_msg,
-                      notification=True)
-        )
+    print(html_msg)
+    await application.update_queue.put(
+        MyMessage(msg=html_msg,
+                  notification=True)
+    )
 
 
 async def alert(msg: Message):
     print(f"ALERT {msg}")
-    await snd("ALERT", msg)
+    await snd("ALERT", "🚨", msg)
 
 
 async def info(msg: Message):
     print(f"INFO {msg}")
 
-    await snd("INFO", msg)
+    await snd("INFO", "ℹ️", msg)
 
 
 async def main():
