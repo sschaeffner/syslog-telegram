@@ -116,19 +116,21 @@ def escape_for_markdown(msg: str):
 
 async def snd(level: str, emoji: str, msg: Message):
     if msg.msg2:
+        # kotlin log format
         html_msg = f"""{emoji} *{escape_for_markdown(escape_ansi(msg.level))}* {emoji}
-{escape_for_markdown(escape_ansi(msg.timestamp))} {escape_for_markdown(escape_ansi(msg.hostname))} {escape_for_markdown(escape_ansi(msg.app_name))} {escape_for_markdown(escape_ansi(msg.procid))}
-```
-{escape_for_pre(escape_ansi(msg.msg))}
-```
-"""
-
-    else:
-        html_msg = f"""{emoji} *{escape_for_markdown(escape_ansi(level))}* {emoji}
 {escape_for_markdown(escape_ansi(msg.timestamp2))} {escape_for_markdown(escape_ansi(msg.clazz))}
 ```
 {escape_for_pre(escape_ansi(msg.msg2))}
 ```
+"""
+
+    else:
+        # other log formats
+        html_msg = f"""{emoji} *{escape_for_markdown(escape_ansi(level))}* {emoji}
+{escape_for_markdown(escape_ansi(msg.timestamp))} {escape_for_markdown(escape_ansi(msg.hostname))} {escape_for_markdown(escape_ansi(msg.app_name))} {escape_for_markdown(escape_ansi(msg.procid))}
+```
+{escape_for_pre(escape_ansi(msg.msg))}
+```   
 """
 
     print(html_msg)
