@@ -54,9 +54,8 @@ class SyslogHandler(DatagramProtocol):
         """to override"""
         raise NotImplementedError()
 
-    async def handle_message(self, data: str):
-        print(f"HANDLE {data.strip()}")
-
+    @staticmethod
+    def deserialize_message(data: str) -> Message:
         s = data.split(" ")
         pri_and_version = s[0]
         timestamp = s[1]
@@ -83,16 +82,16 @@ class SyslogHandler(DatagramProtocol):
             msg2=None,
         )
 
-        if "fabx-app" in app_name:
+        if "fabx" in app_name:
             s = msg.split(" ")
 
             try:
                 # %white(%d{ISO8601}) %highlight(%-5level) [%blue(%t)]
                 # %cyan(%c{1}): %msg%n%throwable
-                timestamp2 = " ".join(s[0:1])
+                timestamp2 = " ".join(s[0:2])
                 level = s[2]
                 thread = s[3]
-                clazz = s[4]
+                clazz = s[4].replace(":", "")
                 msg2 = " ".join(s[5:])
 
                 message = Message(
@@ -111,15 +110,17 @@ class SyslogHandler(DatagramProtocol):
                     msg2="".join(msg2),
                 )
 
-                if self.alert_filter(message):
-                    await self.alert(message)
-                if self.info_filter(message):
-                    await self.info(message)
-
             except IndexError:
                 print(f"- unknown format - {msg}")
-        else:
-            if self.alert_filter(message):
-                await self.alert(message)
-            if self.info_filter(message):
-                await self.info(message)
+
+        return message
+
+    async def handle_message(self, data: str):
+        print(f"HANDLE {data.strip()}")
+
+        message = self.deserialize_message(data)
+
+        if self.alert_filter(message):
+            await self.alert(message)
+        if self.info_filter(message):
+            await self.info(message)
