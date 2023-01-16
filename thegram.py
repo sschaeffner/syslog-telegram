@@ -14,7 +14,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, \
 from sysloghandler import SyslogHandler, Message
 
 # GLOBAL SETTINGS #
-CHAT_ID = 50877378
+CHAT_ID = -1001833384943
 VERSION = "0.1.0"
 ###################
 
