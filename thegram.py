@@ -136,7 +136,7 @@ async def snd(level: str, emoji: str, msg: Message):
     print(html_msg)
     await application.update_queue.put(
         MyMessage(msg=html_msg,
-                  notification=True)
+                  notification=(level == "ALERT"))
     )
 
 
